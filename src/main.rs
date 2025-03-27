@@ -1,12 +1,12 @@
+use std::convert::TryFrom;
+use std::env::args;
 use std::io::Read;
 use std::{io, u16, vec};
-use std::env::args;
-use std::convert::TryFrom;
-fn main() {
-    println!("Hello, world!");
-}
-//16 bits each 
-#[repr(u16)]  
+fn main() {}
+//16 bits each
+
+#[derive(Debug, Clone, Copy)]
+#[repr(u16)]
 enum Registers {
     R_R0 = 0,
     R_R1,
@@ -16,22 +16,24 @@ enum Registers {
     R_R5,
     R_R6,
     R_R7,
-    R_PC(u16),
-    R_COND(R_COND),
-    R_COUNT(u16)
+    R_PC,
+    R_COND,
+    R_COUNT = 10,
 }
+
 const MR_KBSR: u16 = 0xFE00; // Keyboard Status Register
 const MR_KBDR: u16 = 0xFE02; // Keyboard Data Register
+
 //R_COND condition flags
+#[derive(Debug, Clone, Copy)]
 enum R_COND {
     FL_POS = 1 << 0,
     FL_ZRO = 1 << 1,
     FL_NEG = 1 << 2,
-    
 }
 //16 bits each
-#[repr(u16)]  
-enum Opcodes{
+#[repr(u16)]
+enum Opcodes {
     OP_BR = 0, /* branch */
     OP_ADD,    /* add  */
     OP_LD,     /* load */
@@ -47,9 +49,8 @@ enum Opcodes{
     OP_JMP,    /* jump */
     OP_RES,    /* reserved (unused) */
     OP_LEA,    /* load effective address */
-    OP_TRAP    /* execute trap */
+    OP_TRAP,   /* execute trap */
 }
-
 
 impl TryFrom<u16> for Opcodes {
     type Error = ();
@@ -76,20 +77,113 @@ impl TryFrom<u16> for Opcodes {
         }
     }
 }
-struct VM{
-    memory: Vec<u16>,
-    registers_storage:Vec<u16>
-
+#[derive(Debug, Clone)]
+struct VM {
+    memory: [u16; 1 << 16],
+    registers_storage: [u16; Registers::R_COUNT as usize],
 }
 
 impl VM {
-    fn new()->Self{
-        Self{
-            memory:vec![u16::MAX],
-            registers_storage:vec![Registers::R_COUNT as u16]
-
+    fn new() -> Self {
+        Self {
+            memory: [0; 1 << 16],
+            registers_storage: [0; Registers::R_COUNT as usize],
         }
     }
+    fn setup(&mut self,  instruction: u16) {
+        let args: Vec<String> = args().collect();
+      
+        self.registers_storage[Registers::R_COND as usize] = R_COND::FL_ZRO as u16;
+        let pc_start: u16 = 0x3000;
+        self.registers_storage[Registers::R_PC as usize] = pc_start;
+
+        //tentatively until I get it to work from the keyboard
+
+        self.mem_write(pc_start, instruction );
+
+        let mut running = 1;
+        while (running == 1) { 
+            let instr = self.memory_read(self.registers_storage[Registers::R_PC as usize]);
+            self.registers_storage[Registers::R_PC as usize] += 1;
+
+            let opcode = instr >> 12;
+            match Opcodes::try_from(opcode) {
+                Ok(Opcodes::OP_ADD) => {
+                    self.add(instr);
+                }
+                Ok(Opcodes::OP_AND) => {}
+                Ok(Opcodes::OP_NOT) => {}
+                Ok(Opcodes::OP_BR) => {}
+                Ok(Opcodes::OP_LD) => todo!(),
+                Ok(Opcodes::OP_ST) => todo!(),
+                Ok(Opcodes::OP_JSR) => todo!(),
+                Ok(Opcodes::OP_LDR) => todo!(),
+                Ok(Opcodes::OP_STR) => todo!(),
+                Ok(Opcodes::OP_RTI) => todo!(),
+                Ok(Opcodes::OP_LDI) => todo!(),
+                Ok(Opcodes::OP_STI) => todo!(),
+                Ok(Opcodes::OP_JMP) => todo!(),
+                Ok(Opcodes::OP_RES) => todo!(),
+                Ok(Opcodes::OP_LEA) => todo!(),
+                Ok(Opcodes::OP_TRAP) => todo!(),
+                Err(_) => {
+                    println!("Invalid opcode");
+                    break;
+                }
+            }
+          running +=1;
+            // if args.len() < 2 {
+            //     println!("Usage: ./lc3 [image-file1] ...");
+            //     println!("Exiting...");
+            //     break;
+            // }
+            // for i in 1..args.len() {
+            //     if !load_image(args[i].as_str()) {
+            //         println!("Failed to load image: {}", args[i]);
+            //         break;
+            //     }
+            // }
+        }
+    }
+
+    fn update_flags(&mut self, r: u16) -> u16 {
+        println!("r  {:?}", r);
+        let mut condition_flag = self.registers_storage[Registers::R_COND as usize];
+
+        self.registers_storage[Registers::R_R2 as usize] = 0;
+        let content_at_r = self.registers_storage[r as usize];
+
+        println!("content at r {:}", content_at_r);
+        if content_at_r == 0 {
+            condition_flag = R_COND::FL_ZRO as u16
+        } else if content_at_r >> 15 == 1 {
+            condition_flag = R_COND::FL_NEG as u16
+        } else {
+            condition_flag = R_COND::FL_POS as u16
+        }
+        println!("condition flag {:}", condition_flag);
+        condition_flag
+    }
+    fn add(&mut self, instruction: u16) {
+        //destination register (DR)
+        let r0 = (instruction >> 9) & 0x7;
+        //first source register (SR1)
+        let r1 = (instruction >> 6) & 0x7;
+
+        if (instruction >> 5) & 0x1 == 1 {
+            let mut imm5: u16 = (instruction & 0x1F).try_into().unwrap(); // extract 5-bit immediate value
+            if imm5 & 0x10 == 1 {
+                imm5 |= 0xFFE0;
+            }
+            self.registers_storage[r0 as usize] = self.registers_storage[r1 as usize] + imm5 as u16;
+        } else {
+            let r2 = instruction & 0x7;
+            self.registers_storage[r0 as usize] =
+                self.registers_storage[r1 as usize] + self.registers_storage[r2 as usize];
+        }
+        self.update_flags(r0);
+    }
+
     fn mem_write(&mut self, address: u16, val: u16) {
         self.memory[address as usize] = val;
     }
@@ -116,94 +210,34 @@ impl VM {
         io::stdin().read_exact(&mut buffer).unwrap();
         buffer[0] as u16
     }
+}
 
-    fn setup(self){
-        let vm = VM::new(); //initialize the VM
-        //assigning the fl_zro to register_storage at index r_cond  
-        self.registers_storage[Registers::R_COND as usize] = R_COND::FL_ZRO as u16;
-        // let mem_read = self.memory_read(Registers::R_PC as u16);
-        let pc_start = Registers::R_PC(0x3000);
-       
-        let args: Vec<String> = args().collect();
-        let running =1;
-        while (running > 0){
-           self.registers_storage[Registers::R_PC as usize]+=1; 
-            let instr =self.memory_read(self.registers_storage[Registers::R_PC as usize]);
+#[cfg(test)]
+mod tests {
+    use crate::{Registers, VM};
 
-            let opcode = instr >> 12;
-            match Opcodes::try_from(opcode) {
-                Ok(Opcodes::OP_ADD) => {
-                    self.add(instr);    
+    #[test]
+    fn test_setup_fn(){
+        //this test is progressive
+        let mut vm = VM::new();
+        vm.registers_storage[1] = 1;
+        vm.registers_storage[2] = 5;
+        vm.setup(0x1042);
+        println!(" ft {:?}" , vm.registers_storage[Registers::R_R0 as usize]);
 
-                            }
-                Ok(Opcodes::OP_AND) => {
-                            }
-                Ok(Opcodes::OP_NOT) => {
-                            }
-                Ok(Opcodes::OP_BR) => {
-                            }
-                Ok(Opcodes::OP_LD) => todo!(),
-                Ok(Opcodes::OP_ST) => todo!(),
-                Ok(Opcodes::OP_JSR) => todo!(),
-                Ok(Opcodes::OP_LDR) => todo!(),
-                Ok(Opcodes::OP_STR) => todo!(),
-                Ok(Opcodes::OP_RTI) => todo!(),
-                Ok(Opcodes::OP_LDI) => todo!(),
-                Ok(Opcodes::OP_STI) => todo!(),
-                Ok(Opcodes::OP_JMP) => todo!(),
-                Ok(Opcodes::OP_RES) => todo!(),
-                Ok(Opcodes::OP_LEA) => todo!(),
-                Ok(Opcodes::OP_TRAP) => todo!(),
-                Err(_) => {
-                    println!("Invalid opcode");
-                    break;
-                }
-                            }
 
-                            if args.len()<2{
-                                println!("Usage: ./lc3 [image-file1] ...");
-                                println!("Exiting...");
-                                break;
-                            }
-                            for i in 1..args.len(){
-                                if !load_image(args[i].as_str()){
-                                    println!("Failed to load image: {}", args[i]);
-                                    break;
-                                }
-                            }
-            
-        }
+
+        
+
     }
-    
-    fn update_flags(r: u16) -> Registers{
-       let mut  condition_flag = Registers::R_COND(R_COND::FL_ZRO);
-       if r  == 0 {
-        condition_flag = Registers::R_COND(R_COND::FL_ZRO)
-       }else if r >> 15 ==1 {
-        condition_flag = Registers::R_COND(R_COND::FL_NEG)
-    
-       }else {
-        condition_flag =  Registers::R_COND(R_COND::FL_POS)
-       }
-       condition_flag
+    #[test]
+    fn test_add_opcode() {
+        let mut vm = VM::new();
+        vm.registers_storage[0] = 4;
+        vm.registers_storage[1] = 1;
+        vm.registers_storage[2] = 5;
 
-  }
-    fn add(mut self, instruction:u16){
-        //destination register (DR)
-        let r0 = (instruction >> 9 ) & 0x7;
-        //first source register (SR1)
-        let  r1 = (instruction >> 6) &  0x7;
-        if (instruction >> 5) & 0x1 == 1{
-            let mut imm5:i16 = (instruction & 0x1F).try_into().unwrap();// extract 5-bit immediate value
-            if imm5 & 0x10  == 1{
-                imm5 |= 0xFFE0;
-
-            }
-            self.registers_storage[r0 as usize] = self.registers_storage[r1 as usize] + imm5 as u16;
-        }else {
-            let r2 = instruction & 0x7;
-            self.registers_storage[r0 as usize] = self.registers_storage[r1 as usize] + self.registers_storage[r2 as usize];
-        }
-        VM::update_flags(self.registers_storage[r0 as usize]);  
+        vm.add(0x1042);
+        assert_eq!(vm.registers_storage[Registers::R_R0 as usize], 6);
     }
 }
