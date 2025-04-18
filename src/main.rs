@@ -120,7 +120,9 @@ impl VM {
                 Ok(Opcodes::OP_LDR) => todo!(),
                 Ok(Opcodes::OP_STR) => todo!(),
                 Ok(Opcodes::OP_RTI) => todo!(),
-                Ok(Opcodes::OP_LDI) => todo!(),
+                Ok(Opcodes::OP_LDI) =>{
+                    // self.ldi(instr);
+                }
                 Ok(Opcodes::OP_STI) => todo!(),
                 Ok(Opcodes::OP_JMP) => todo!(),
                 Ok(Opcodes::OP_RES) => todo!(),
@@ -150,7 +152,6 @@ impl VM {
         println!("r  {:?}", r);
         let mut condition_flag = self.registers_storage[Registers::R_COND as usize];
 
-        self.registers_storage[Registers::R_R2 as usize] = 0;
         let content_at_r = self.registers_storage[r as usize];
 
         println!("content at r {:}", content_at_r);
@@ -184,6 +185,23 @@ impl VM {
         self.update_flags(r0);
     }
 
+    fn ldi(&mut self, instruction: u16){
+        let dr = (instruction >> 9) & 0x7;
+    
+        let pc_offset = instruction & 0x1FF;
+        let pc_offset = if pc_offset & 0x100 != 0 {
+            pc_offset | 0xFE00
+        } else {
+            pc_offset
+        };
+
+
+        let address = self.memory_read( self.registers_storage[Registers::R_PC as usize] + pc_offset); 
+    
+        self.registers_storage[dr as usize] = self.memory_read(address);
+            
+        self.update_flags(dr);
+    }
     fn mem_write(&mut self, address: u16, val: u16) {
         self.memory[address as usize] = val;
     }
@@ -209,7 +227,8 @@ impl VM {
         let mut buffer = [0; 1];
         io::stdin().read_exact(&mut buffer).unwrap();
         buffer[0] as u16
-    }
+    
+}
 }
 
 #[cfg(test)]
@@ -239,5 +258,14 @@ mod tests {
 
         vm.add(0x1042);
         assert_eq!(vm.registers_storage[Registers::R_R0 as usize], 6);
+    }
+    #[test]
+    fn test_ldi_opcode() {
+        let mut vm = VM::new();
+        vm.registers_storage[Registers::R_PC as usize] = 0x3000;
+        vm.mem_write(0x3005, 0x2ffd);
+        vm.mem_write(0x2ffd, 42);
+        vm.ldi(0xA405);
+        assert_eq!(vm.registers_storage[Registers::R_R2 as usize], 42);
     }
 }
