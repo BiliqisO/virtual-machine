@@ -90,19 +90,19 @@ impl VM {
             registers_storage: [0; Registers::R_COUNT as usize],
         }
     }
-    fn setup(&mut self,  instruction: u16) {
+    fn setup(&mut self, instruction: u16) {
         let args: Vec<String> = args().collect();
-      
+
         self.registers_storage[Registers::R_COND as usize] = R_COND::FL_ZRO as u16;
         let pc_start: u16 = 0x3000;
         self.registers_storage[Registers::R_PC as usize] = pc_start;
 
         //tentatively until I get it to work from the keyboard
 
-        self.mem_write(pc_start, instruction );
+        self.mem_write(pc_start, instruction);
 
         let mut running = 1;
-        while (running == 1) { 
+        while (running == 1) {
             let instr = self.memory_read(self.registers_storage[Registers::R_PC as usize]);
             self.registers_storage[Registers::R_PC as usize] += 1;
 
@@ -111,20 +111,30 @@ impl VM {
                 Ok(Opcodes::OP_ADD) => {
                     self.add(instr);
                 }
-                Ok(Opcodes::OP_AND) => {}
-                Ok(Opcodes::OP_NOT) => {}
-                Ok(Opcodes::OP_BR) => {}
+                Ok(Opcodes::OP_AND) => {
+                    self.and(instr);
+                }
+                Ok(Opcodes::OP_NOT) => {
+                    self.not(instr);
+                }
+                Ok(Opcodes::OP_BR) => {
+                    self.branch(instr);
+                }
                 Ok(Opcodes::OP_LD) => todo!(),
                 Ok(Opcodes::OP_ST) => todo!(),
-                Ok(Opcodes::OP_JSR) => todo!(),
+                Ok(Opcodes::OP_JSR) => {
+                    self.jump_register(instr);
+                },
                 Ok(Opcodes::OP_LDR) => todo!(),
                 Ok(Opcodes::OP_STR) => todo!(),
                 Ok(Opcodes::OP_RTI) => todo!(),
-                Ok(Opcodes::OP_LDI) =>{
-                    // self.ldi(instr);
+                Ok(Opcodes::OP_LDI) => {
+                    self.ldi(instr);
                 }
                 Ok(Opcodes::OP_STI) => todo!(),
-                Ok(Opcodes::OP_JMP) => todo!(),
+                Ok(Opcodes::OP_JMP) =>{
+                       self.jump(instr);
+                },
                 Ok(Opcodes::OP_RES) => todo!(),
                 Ok(Opcodes::OP_LEA) => todo!(),
                 Ok(Opcodes::OP_TRAP) => todo!(),
@@ -133,7 +143,7 @@ impl VM {
                     break;
                 }
             }
-          running +=1;
+            running += 1;
             // if args.len() < 2 {
             //     println!("Usage: ./lc3 [image-file1] ...");
             //     println!("Exiting...");
@@ -165,18 +175,74 @@ impl VM {
         println!("condition flag {:}", condition_flag);
         condition_flag
     }
-    fn add(&mut self, instruction: u16) {
+
+    fn sign_extend(&self, value: u16, bit_count: u16) -> u16 {
+        if (value >> (bit_count - 1)) & 1 == 1 {
+            value | (0xFFFF << bit_count)
+        } else {
+            value
+        }
+    }
+
+
+
+    fn not(&mut self, instruction: u16) {
         //destination register (DR)
-        let r0 = (instruction >> 9) & 0x7;
+        let dr = (instruction >> 9) & 0x7;
         //first source register (SR1)
         let r1 = (instruction >> 6) & 0x7;
 
+        self.registers_storage[dr as usize] = !self.registers_storage[r1 as usize];
+        self.update_flags(dr);
+    }
+    
+
+    fn jump(&mut self, instruction: u16) {
+       let r1 = (instruction >> 6) & 0x7;
+     
+       self.registers_storage[Registers::R_PC as usize] = self.registers_storage[r1 as usize];
+    }
+    fn jump_register(&mut self, instruction: u16) {
+     let long_flag = (instruction >> 11) & 0x1;
+     self.registers_storage[Registers::R_R7 as usize] = self.registers_storage[Registers::R_PC as usize];
+        if long_flag == 1 {
+            let pc_offset = instruction & 0x7FF;
+            let pc_offset = self.sign_extend(pc_offset, 11);
+            self.registers_storage[Registers::R_PC as usize] += pc_offset;
+        } else {
+            let r1 = (instruction >> 6) & 0x7;
+            self.registers_storage[Registers::R_PC as usize] = self.registers_storage[r1 as usize];
+        }
+    }
+
+    fn branch(&mut self, instruction: u16) {
+        let pc_offset = instruction & 0x1FF;
+        let pc_offset = self.sign_extend(pc_offset, 9);
+        self.registers_storage[Registers::R_PC as usize] += pc_offset;
+    }
+
+    fn ldi(&mut self, instruction: u16) {
+        let dr = (instruction >> 9) & 0x7;
+
+        let pc_offset = instruction & 0x1FF;
+        let pc_offset = self.sign_extend(pc_offset, 9);
+
+        let address =
+            self.memory_read(self.registers_storage[Registers::R_PC as usize] + pc_offset);
+
+        self.registers_storage[dr as usize] = self.memory_read(address);
+
+        self.update_flags(dr);
+    }
+
+    fn add(&mut self, instruction: u16) {
+        let r0 = (instruction >> 9) & 0x7;
+        let r1 = (instruction >> 6) & 0x7;
+
         if (instruction >> 5) & 0x1 == 1 {
-            let mut imm5: u16 = (instruction & 0x1F).try_into().unwrap(); // extract 5-bit immediate value
-            if imm5 & 0x10 == 1 {
-                imm5 |= 0xFFE0;
-            }
-            self.registers_storage[r0 as usize] = self.registers_storage[r1 as usize] + imm5 as u16;
+            let imm5 = instruction & 0x1F;
+            let imm5 = self.sign_extend(imm5, 5);
+            self.registers_storage[r0 as usize] = self.registers_storage[r1 as usize] + imm5;
         } else {
             let r2 = instruction & 0x7;
             self.registers_storage[r0 as usize] =
@@ -185,23 +251,61 @@ impl VM {
         self.update_flags(r0);
     }
 
-    fn ldi(&mut self, instruction: u16){
+    fn and(&mut self, instruction: u16) {
         let dr = (instruction >> 9) & 0x7;
-    
-        let pc_offset = instruction & 0x1FF;
-        let pc_offset = if pc_offset & 0x100 != 0 {
-            pc_offset | 0xFE00
+        let r1 = (instruction >> 6) & 0x7;
+
+        if (instruction >> 5) & 0x1 == 1 {
+            let imm5 = instruction & 0x1F;
+            let imm5 = self.sign_extend(imm5, 5);
+            self.registers_storage[dr as usize] = self.registers_storage[r1 as usize] & imm5;
         } else {
-            pc_offset
-        };
-
-
-        let address = self.memory_read( self.registers_storage[Registers::R_PC as usize] + pc_offset); 
-    
-        self.registers_storage[dr as usize] = self.memory_read(address);
-            
+            let r2 = instruction & 0x7;
+            self.registers_storage[dr as usize] =
+                self.registers_storage[r1 as usize] & self.registers_storage[r2 as usize];
+        }
         self.update_flags(dr);
     }
+    fn load(&mut self, instruction: u16) {
+        let dr = (instruction >> 9) & 0x7;
+   
+        let pc_offset = instruction & 0x1FF;
+        let pc_offset = self.sign_extend(pc_offset, 9);
+        self.registers_storage[dr as usize] =
+            self.memory_read(self.registers_storage[Registers::R_PC as usize] + pc_offset);
+        self.update_flags(dr);
+    }
+    fn load_register(&mut self, instruction: u16) {
+        let dr = (instruction >> 9) & 0x7;
+        let r1 = (instruction >> 6) & 0x7;
+        println!("r1 {:}", r1);
+        println!("dr {:}", dr);
+
+        let offset = instruction & 0x3F;
+        let offset = self.sign_extend(offset, 6);
+        self.registers_storage[dr as usize] =
+            self.memory_read(self.registers_storage[r1 as usize] + offset);
+        self.update_flags(dr);
+    }
+    fn lea(&mut self, instruction: u16) {
+        let dr = (instruction >> 9) & 0x7;
+        let pc_offset = instruction & 0x1FF;
+        let pc_offset = self.sign_extend(pc_offset, 9);
+        self.registers_storage[dr as usize] = self.registers_storage[Registers::R_PC as usize] + pc_offset;
+        self.update_flags(dr);
+    }
+    fn store(&mut self, instruction: u16) {
+        let sr = (instruction >> 9) & 0x7;
+        let pc_offset = instruction & 0x1FF;
+        let pc_offset = self.sign_extend(pc_offset, 9);
+        self.mem_write(
+            self.registers_storage[Registers::R_PC as usize] + pc_offset,
+            self.registers_storage[sr as usize],
+        );
+    }
+
+
+    
     fn mem_write(&mut self, address: u16, val: u16) {
         self.memory[address as usize] = val;
     }
@@ -227,27 +331,22 @@ impl VM {
         let mut buffer = [0; 1];
         io::stdin().read_exact(&mut buffer).unwrap();
         buffer[0] as u16
-    
-}
+    }
 }
 
 #[cfg(test)]
+
 mod tests {
     use crate::{Registers, VM};
 
     #[test]
-    fn test_setup_fn(){
+    fn test_setup_fn() {
         //this test is progressive
         let mut vm = VM::new();
         vm.registers_storage[1] = 1;
         vm.registers_storage[2] = 5;
         vm.setup(0x1042);
-        println!(" ft {:?}" , vm.registers_storage[Registers::R_R0 as usize]);
-
-
-
-        
-
+        println!(" ft {:?}", vm.registers_storage[Registers::R_R0 as usize]);
     }
     #[test]
     fn test_add_opcode() {
@@ -266,6 +365,61 @@ mod tests {
         vm.mem_write(0x3005, 0x2ffd);
         vm.mem_write(0x2ffd, 42);
         vm.ldi(0xA405);
+        assert_eq!(vm.registers_storage[Registers::R_R2 as usize], 42);
+    }
+    #[test]
+    fn test_and_opcode() {
+        let mut vm = VM::new();
+        vm.registers_storage[1] = 4;
+        vm.and(0x5464);
+        assert_eq!(vm.registers_storage[Registers::R_R2 as usize], 4);
+    }
+    #[test]
+    fn test_not_opcode() {
+        let mut vm = VM::new();
+        vm.registers_storage[2] = 4;
+        vm.not(0x96BF);
+        assert_eq!(vm.registers_storage[Registers::R_R3 as usize], !4);
+    }
+    #[test]
+    fn test_br_opcode() {
+        let mut vm = VM::new();
+        vm.registers_storage[Registers::R_PC as usize] = 0x3000;
+        vm.branch(0x1404);
+        assert_eq!(vm.registers_storage[Registers::R_PC as usize], 0x3004);
+    }
+    #[test]
+    fn test_jump_opcode() {
+        let mut vm = VM::new();
+        vm.registers_storage[Registers::R_PC as usize] = 0x3000;
+        vm.registers_storage[Registers::R_R6 as usize] = 0x3001;
+        vm.jump(0xC380);
+        assert_eq!(vm.registers_storage[Registers::R_PC as usize], 0x3001);
+   
+    }
+    #[test]
+    fn test_jump_register_opcode() {
+        let mut vm = VM::new();
+        vm.registers_storage[Registers::R_PC as usize] = 0x3000;
+        vm.registers_storage[Registers::R_R3 as usize] = 0x2305;
+        vm.jump_register(0x04C0);
+        assert_eq!(vm.registers_storage[Registers::R_R7 as usize], 0x3000);
+        assert_eq!(vm.registers_storage[Registers::R_PC as usize], 0x2305);
+    }
+    #[test]
+    fn test_load_opcode() {
+        let mut vm = VM::new();
+        vm.registers_storage[Registers::R_PC as usize] = 0x3000;
+        vm.mem_write(0x3005, 42);
+        vm.load(0x2205);
+        assert_eq!(vm.registers_storage[Registers::R_R1 as usize], 42);
+    }
+    #[test]
+    fn test_load_register_opcode() {
+        let mut vm = VM::new();
+        vm.registers_storage[Registers::R_R3 as usize] = 0x3000;
+        vm.mem_write(0x3004, 42);
+        vm.load_register(0x64C4);
         assert_eq!(vm.registers_storage[Registers::R_R2 as usize], 42);
     }
 }
