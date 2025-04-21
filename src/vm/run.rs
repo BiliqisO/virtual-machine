@@ -105,34 +105,7 @@ impl OP_TRAP {
     }
 }
 
-fn load_arguments(){
-    let args: Vec<String> = env::args().collect();
 
-    // Check if at least one image file is passed
-    if args.len() < 2 {
-        eprintln!("Usage: lc3 [image-file1] ...");
-        std::process::exit(2);
-    }
-
-    // Load each image file
-    let mut vm = VM::new(); // Assuming you have a VM struct
-
-    for filename in &args[1..] {
-        match File::open(filename) {
-            Ok(file) => {
-                if let Err(e) = vm.read_image_file(file) {
-                    eprintln!("Failed to load image: {} ({})", filename, e);
-                    std::process::exit(1);
-                }
-            }
-            Err(_) => {
-                eprintln!("Could not open file: {}", filename);
-                std::process::exit(1);
-            }
-        }
-    }
-
-}
 pub fn sign_extend( value: u16, bit_count: u16) -> u16 {
         if (value >> (bit_count - 1)) & 1 == 1 {
             value | (0xFFFF << bit_count)
@@ -154,12 +127,40 @@ impl VM {
          registers_storage: [0; Registers::R_COUNT as usize],
         }
     }
+    fn load_arguments(&mut self){
+    let args: Vec<String> = env::args().collect();
+
+    // Check if at least one image file is passed
+    if args.len() < 2 {
+        eprintln!("Usage: lc3 [image-file1] ...");
+        std::process::exit(2);
+    }
+
+
+    for filename in &args[1..] {
+        match File::open(filename) {
+            Ok(file) => {
+                if let Err(e) = self.read_image_file(file) {
+                    eprintln!("Failed to load image: {} ({})", filename, e);
+                    std::process::exit(1);
+                }
+            }
+            Err(_) => {
+                eprintln!("Could not open file: {}", filename);
+                std::process::exit(1);
+            }
+        }
+    }
+
+}
 
   
 
     pub fn run(&mut self) {
         setup();
-        load_arguments();
+            let mut vm = VM::new();
+
+        self.load_arguments();
       
 
         self.registers_storage[Registers::R_COND as usize] = R_COND::FL_ZRO as u16;//
@@ -167,8 +168,8 @@ impl VM {
         self.registers_storage[Registers::R_PC as usize] = pc_start;//.
 
 
-        let mut running = 1;
-        while running == 1 {
+        let mut running = true;
+        while running {
             let instr = self.memory_read(self.registers_storage[Registers::R_PC as usize]);
             self.registers_storage[Registers::R_PC as usize] += 1;
 
@@ -176,38 +177,51 @@ impl VM {
             match Opcodes::try_from(opcode) {
                 Ok(Opcodes::OP_ADD) => {
                     self.add(instr);
+                    break;
                 }
                 Ok(Opcodes::OP_AND) => {
                     self.and(instr);
+                    break;
                 }
                 Ok(Opcodes::OP_NOT) => {
                     self.not(instr);
+                    break;
                 }
                 Ok(Opcodes::OP_BR) => {
                     self.branch(instr);
+                    break;
                 }
-                Ok(Opcodes::OP_LD) => self.load(instr),
+                Ok(Opcodes::OP_LD) => {self.load(instr);
+                break;}
 
-                Ok(Opcodes::OP_ST) => self.store(instr),
+                Ok(Opcodes::OP_ST) => {self.store(instr);
+                break;},
                 Ok(Opcodes::OP_JSR) => {
                     self.jump_register(instr);
+                    break;
                 }
-                Ok(Opcodes::OP_LDR) => self.load_register(instr),
-                Ok(Opcodes::OP_STR) => self.store_register(instr),
+                Ok(Opcodes::OP_LDR) =>{ self.load_register(instr);
+                break;},
+                Ok(Opcodes::OP_STR) => {self.store_register(instr);
+                break;},
                 Ok(Opcodes::OP_RTI) => {
                     break;
                 }
                 Ok(Opcodes::OP_LDI) => {
                     self.ldi(instr);
+                    break;
                 }
-                Ok(Opcodes::OP_STI) => self.store_indirect(instr),
+                Ok(Opcodes::OP_STI) => {self.store_indirect(instr);
+                break;},
                 Ok(Opcodes::OP_JMP) => {
                     self.jump(instr);
+                    break;
                 }
                 Ok(Opcodes::OP_RES) => {
                     break;
                 }
-                Ok(Opcodes::OP_LEA) => self.lea(instr),
+                Ok(Opcodes::OP_LEA) =>{ self.lea(instr);
+                break;},
                 Ok(Opcodes::OP_TRAP) => {
                     self.registers_storage[Registers::R_R7 as usize] =
                         self.registers_storage[Registers::R_PC as usize];
@@ -233,23 +247,28 @@ impl VM {
                             OP_TRAP::TRAP_HALT => {
                                     println!("Halting the program...");
                                     io::stdout().flush().unwrap();
-                                    running = 0;
+                                    running = false;
                                 }
                             
                         }
                     } else {
                         println!("Invalid TRAP vector: {}", instr);
                     }
-                }
-                Err(_) => {
-                    println!("Invalid opcode");
                     break;
                 }
+                Err(_) => {
+                      eprintln!("Invalid opcode encountered: {:#X}", opcode);
+                    break;
+                }
+   
             }
-            restore_input_buffering();
+                   
+  
      
           
         }
+        restore_input_buffering();
+    
     }
         pub fn swap16(x: u16) -> u16 {
         x << 8 | x >> 8
