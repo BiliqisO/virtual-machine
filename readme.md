@@ -1,4 +1,3 @@
-```markdown
 # Virtual Machine Emulator
 
 This project is a **Virtual Machine Emulator** written in Rust. It emulates a simple virtual machine capable of executing instructions, handling memory, and performing basic I/O operations. The emulator supports a variety of opcodes and traps, making it a versatile tool for learning and experimentation.
@@ -13,6 +12,7 @@ This project is a **Virtual Machine Emulator** written in Rust. It emulates a si
 - **Input Buffering**: Handles input buffering for smooth I/O operations.
 
 ## Project Structure
+
 ```
 
 ├── src
@@ -26,7 +26,7 @@ This project is a **Virtual Machine Emulator** written in Rust. It emulates a si
 ├── Cargo.toml # Rust project configuration
 └── README.md # Project documentation
 
-````
+```
 
 ## Getting Started
 
@@ -40,6 +40,8 @@ This project is a **Virtual Machine Emulator** written in Rust. It emulates a si
    ```bash
    git clone https://github.com/your-username/virtual-vm.git
    cd virtual-vm
+   ```
+
 ````
 
 2. Build the project:
@@ -134,4 +136,5 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ```
 
-```
+
+````

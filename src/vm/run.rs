@@ -158,7 +158,7 @@ impl VM {
 
     pub fn run(&mut self) {
         setup();
-            let mut vm = VM::new();
+        let mut vm = VM::new();
 
         self.load_arguments();
       
@@ -171,6 +171,7 @@ impl VM {
         let mut running = true;
         while running {
             let instr = self.memory_read(self.registers_storage[Registers::R_PC as usize]);
+            println!("Instruction: {:#X}", instr);
             self.registers_storage[Registers::R_PC as usize] += 1;
 
             let opcode = instr >> 12;
