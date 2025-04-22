@@ -42,7 +42,7 @@ This project is a **Virtual Machine Emulator** written in Rust. It emulates a si
    cd virtual-vm
    ```
 
-````
+
 
 2. Build the project:
 
