@@ -134,7 +134,5 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 - Inspired by the LC-3 Virtual Machine.
 - Special thanks to the Rust community for their excellent documentation and support.
 
-```
-
 
 ````
