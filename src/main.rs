@@ -1,9 +1,12 @@
-pub mod vm;
+
+pub mod input_buffering;
+pub mod run;    
 
 
-fn main(){
+
+fn main() {
     // Initialize the VM
-    let mut vm = vm::run::VM::new();
+    let mut vm = run::VM::new();
 
     // // Load a program into memory
     // let program: [u16; 5] = [

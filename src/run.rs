@@ -1,10 +1,11 @@
-use crate::vm::input_buffering;
 
-use std::convert::TryFrom;
-use std::fs::File;
-use std::env::{self, args};
-use std::io::{self, stdout, Write, Read};
+use crate::input_buffering;
+
 use input_buffering::{check_key, restore_input_buffering, setup};
+use std::convert::TryFrom;
+use std::env::{self, args};
+use std::fs::File;
+use std::io::{self, stdout, Read, Write};
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u16)]
@@ -25,8 +26,7 @@ pub enum Registers {
 const MR_KBSR: u16 = 0xFE00; // Keyboard Status Register
 const MR_KBDR: u16 = 0xFE02; // Keyboard Data Register
 
-const MEMORY_SIZE: usize=1<<16; 
-
+const MEMORY_SIZE: usize = 1 << 16;
 
 //R_COND condition flags
 #[derive(Debug, Clone, Copy)]
@@ -105,68 +105,59 @@ impl OP_TRAP {
     }
 }
 
-
-pub fn sign_extend( value: u16, bit_count: u16) -> u16 {
-        if (value >> (bit_count - 1)) & 1 == 1 {
-            value | (0xFFFF << bit_count)
-        } else {
-            value
-        }
+pub fn sign_extend(value: u16, bit_count: u16) -> u16 {
+    if (value >> (bit_count - 1)) & 1 == 1 {
+        value | (0xFFFF << bit_count)
+    } else {
+        value
     }
+}
 #[derive(Debug, Clone)]
 pub struct VM {
     pub memory: [u16; 1 << 16],
     pub registers_storage: [u16; Registers::R_COUNT as usize],
 }
 
-
 impl VM {
     pub fn new() -> Self {
         Self {
-            memory: [0;MEMORY_SIZE],
-         registers_storage: [0; Registers::R_COUNT as usize],
+            memory: [0; MEMORY_SIZE],
+            registers_storage: [0; Registers::R_COUNT as usize],
         }
     }
-    fn load_arguments(&mut self){
-    let args: Vec<String> = env::args().collect();
+    fn load_arguments(&mut self) {
+        let args: Vec<String> = env::args().collect();
 
-    // Check if at least one image file is passed
-    if args.len() < 2 {
-        eprintln!("Usage: lc3 [image-file1] ...");
-        std::process::exit(2);
-    }
+        // Check if at least one image file is passed
+        if args.len() < 2 {
+            eprintln!("Usage: lc3 [image-file1] ...");
+            std::process::exit(2);
+        }
 
-
-    for filename in &args[1..] {
-        match File::open(filename) {
-            Ok(file) => {
-                if let Err(e) = self.read_image_file(file) {
-                    eprintln!("Failed to load image: {} ({})", filename, e);
+        for filename in &args[1..] {
+            match File::open(filename) {
+                Ok(file) => {
+                    if let Err(e) = self.read_image_file(file) {
+                        eprintln!("Failed to load image: {} ({})", filename, e);
+                        std::process::exit(1);
+                    }
+                }
+                Err(_) => {
+                    eprintln!("Could not open file: {}", filename);
                     std::process::exit(1);
                 }
             }
-            Err(_) => {
-                eprintln!("Could not open file: {}", filename);
-                std::process::exit(1);
-            }
         }
     }
 
-}
-
-  
-
     pub fn run(&mut self) {
         setup();
-        let mut vm = VM::new();
 
         self.load_arguments();
-      
 
-        self.registers_storage[Registers::R_COND as usize] = R_COND::FL_ZRO as u16;//
+        self.registers_storage[Registers::R_COND as usize] = R_COND::FL_ZRO as u16; //
         let pc_start: u16 = 0x3000;
-        self.registers_storage[Registers::R_PC as usize] = pc_start;//.
-
+        self.registers_storage[Registers::R_PC as usize] = pc_start; //.
 
         let mut running = true;
         while running {
@@ -192,19 +183,27 @@ impl VM {
                     self.branch(instr);
                     break;
                 }
-                Ok(Opcodes::OP_LD) => {self.load(instr);
-                break;}
+                Ok(Opcodes::OP_LD) => {
+                    self.load(instr);
+                    break;
+                }
 
-                Ok(Opcodes::OP_ST) => {self.store(instr);
-                break;},
+                Ok(Opcodes::OP_ST) => {
+                    self.store(instr);
+                    break;
+                }
                 Ok(Opcodes::OP_JSR) => {
                     self.jump_register(instr);
                     break;
                 }
-                Ok(Opcodes::OP_LDR) =>{ self.load_register(instr);
-                break;},
-                Ok(Opcodes::OP_STR) => {self.store_register(instr);
-                break;},
+                Ok(Opcodes::OP_LDR) => {
+                    self.load_register(instr);
+                    break;
+                }
+                Ok(Opcodes::OP_STR) => {
+                    self.store_register(instr);
+                    break;
+                }
                 Ok(Opcodes::OP_RTI) => {
                     break;
                 }
@@ -212,8 +211,10 @@ impl VM {
                     self.ldi(instr);
                     break;
                 }
-                Ok(Opcodes::OP_STI) => {self.store_indirect(instr);
-                break;},
+                Ok(Opcodes::OP_STI) => {
+                    self.store_indirect(instr);
+                    break;
+                }
                 Ok(Opcodes::OP_JMP) => {
                     self.jump(instr);
                     break;
@@ -221,8 +222,10 @@ impl VM {
                 Ok(Opcodes::OP_RES) => {
                     break;
                 }
-                Ok(Opcodes::OP_LEA) =>{ self.lea(instr);
-                break;},
+                Ok(Opcodes::OP_LEA) => {
+                    self.lea(instr);
+                    break;
+                }
                 Ok(Opcodes::OP_TRAP) => {
                     self.registers_storage[Registers::R_R7 as usize] =
                         self.registers_storage[Registers::R_PC as usize];
@@ -233,7 +236,7 @@ impl VM {
                                 self.trap_getc(None);
                             }
                             OP_TRAP::TRAP_OUT => {
-                              self.trap_out();
+                                self.trap_out();
                             }
                             OP_TRAP::TRAP_PUTS => {
                                 self.trap_puts();
@@ -243,14 +246,12 @@ impl VM {
                             }
                             OP_TRAP::TRAP_PUTSP => {
                                 self.trap_putsp();
-                             
                             }
                             OP_TRAP::TRAP_HALT => {
-                                    println!("Halting the program...");
-                                    io::stdout().flush().unwrap();
-                                    running = false;
-                                }
-                            
+                                println!("Halting the program...");
+                                io::stdout().flush().unwrap();
+                                running = false;
+                            }
                         }
                     } else {
                         println!("Invalid TRAP vector: {}", instr);
@@ -258,20 +259,14 @@ impl VM {
                     break;
                 }
                 Err(_) => {
-                      eprintln!("Invalid opcode encountered: {:#X}", opcode);
+                    eprintln!("Invalid opcode encountered: {:#X}", opcode);
                     break;
                 }
-   
             }
-                   
-  
-     
-          
         }
         restore_input_buffering();
-    
     }
-        pub fn swap16(x: u16) -> u16 {
+    pub fn swap16(x: u16) -> u16 {
         x << 8 | x >> 8
     }
 
@@ -283,7 +278,7 @@ impl VM {
         // Read origin (2 bytes)
         let mut origin_buf = [0u8; 2];
         file.read_exact(&mut origin_buf)?;
-       let origin = u16::from_be_bytes(origin_buf) as usize;
+        let origin = u16::from_be_bytes(origin_buf) as usize;
         println!("origin {:}", origin);
 
         // Read the rest of the image into memory starting at `origin`
@@ -312,30 +307,30 @@ impl VM {
         }
         stdout().flush().unwrap();
     }
-    pub fn trap_putsp(&mut self){
-           let mut address = self.registers_storage[Registers::R_R0 as usize];
+    pub fn trap_putsp(&mut self) {
+        let mut address = self.registers_storage[Registers::R_R0 as usize];
 
-                                loop {
-                                    let word = self.memory_read(address);
-                                    if word == 0 {
-                                        break;
-                                    }
+        loop {
+            let word = self.memory_read(address);
+            if word == 0 {
+                break;
+            }
 
-                                    // Extract lower 8 bits (char1) and upper 8 bits (char2)
-                                    let char1 = (word & 0xFF) as u8 as char;
-                                    print!("{}", char1);
+            // Extract lower 8 bits (char1) and upper 8 bits (char2)
+            let char1 = (word & 0xFF) as u8 as char;
+            print!("{}", char1);
 
-                                    let char2 = (word >> 8) as u8;
-                                    if char2 != 0 {
-                                        print!("{}", char2 as char);
-                                    }
+            let char2 = (word >> 8) as u8;
+            if char2 != 0 {
+                print!("{}", char2 as char);
+            }
 
-                                    address += 1;
-                                }
+            address += 1;
+        }
 
-                                io::stdout().flush().unwrap();
+        io::stdout().flush().unwrap();
     }
-    // if else block and input param is so I can test the funnction independently, 
+    // if else block and input param is so I can test the funnction independently,
     pub fn trap_getc(&mut self, input: Option<u16>) {
         if let Some(value) = input {
             self.registers_storage[Registers::R_R0 as usize] = value;
@@ -351,7 +346,7 @@ impl VM {
     }
     pub fn trap_in(&mut self) {
         print!("Enter a character: ");
-        io::stdout().flush().unwrap(); // Flush to display the prompt
+        io::stdout().flush().unwrap(); 
 
         let mut buffer = [0u8; 1];
         io::stdin().read_exact(&mut buffer).unwrap();
@@ -385,8 +380,6 @@ impl VM {
         println!("condition flag {:}", condition_flag);
         condition_flag
     }
-
-  
 
     pub fn not(&mut self, instruction: u16) {
         //destination register (DR)
@@ -550,4 +543,3 @@ impl VM {
         buffer[0] as u16
     }
 }
-

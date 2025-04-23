@@ -1,15 +1,12 @@
 
-
 #[cfg(test)]
 
-
 mod tests {
-    use super::*;
-    use std::fs::File;
-    use std::io::{Write, BufWriter};
-    use virtual_vm::vm::run::{VM, Registers};
-    use virtual_vm::vm::input_buffering::{setup, disable_input_buffering, restore_input_buffering};
+    use virtual_vm::run::{VM, Registers};
 
+    use std::fs::File;
+    use std::io::Write; 
+   
     #[test]
     fn test_vm_run_fn() {
         //this test is progressive
@@ -24,7 +21,7 @@ mod tests {
         let mut vm = VM::new();
         vm.registers_storage[0] = 4;
         vm.registers_storage[1] = 1;
-        vm.registers_storage[2] = 5;
+        vm.registers_storage[2] = 5; 
 
         vm.add(0x1042);
         assert_eq!(vm.registers_storage[Registers::R_R0 as usize], 6);
@@ -135,7 +132,6 @@ mod tests {
         vm.mem_write(0x3004, 0x0021);
         vm.mem_write(0x3005, 0x0000); // Null terminator
         vm.trap_puts();
-
     }
     #[test]
     fn test_trap_putsp() {
@@ -144,13 +140,12 @@ mod tests {
         vm.mem_write(0x3000, 0x6548);
         vm.mem_write(0x3001, 0x6C6C);
         vm.mem_write(0x3002, 0x006F);
-        vm.mem_write(0x3003, 0x0021);// Null terminator
+        vm.mem_write(0x3003, 0x0021); // Null terminator
         vm.trap_putsp();
-
     }
     #[test]
     fn test_trap_getc() {
-        let mut vm = VM::new();    
+        let mut vm = VM::new();
         vm.trap_getc(Some('A' as u16));
         assert_eq!(vm.registers_storage[Registers::R_R0 as usize], 'A' as u16);
     }
@@ -160,46 +155,45 @@ mod tests {
         vm.registers_storage[Registers::R_R0 as usize] = 'A' as u16;
         vm.trap_out();
         // Check the output manually
-    }   
+    }
     // #[test]
     // fn test_trap_in() {
     //     let mut vm = VM::new();
     //     vm.trap_in();
     //     // Check the output manually
-    // }  
+    // }
     #[test]
-    fn test_read_image(){
+    fn test_read_image() {
         let mut vm = VM::new();
         let filename = "tests/test_image.bin";
         vm.read_image(filename).unwrap();
 
         // Check if the memory is loaded correctly
-        assert_eq!(vm.memory[0x3000], 0x1234); 
-    } 
-   #[test]
-   fn test_read_image_file() {
+        assert_eq!(vm.memory[0x3000], 0x1234);
+    }
+    #[test]
+    fn test_read_image_file() {
         let mut vm = VM::new();
         let filename = "tests/test_image.bin";
 
-    // Create and write to the file
-    {
-        let mut file = File::create(filename).unwrap();
+        // Create and write to the file
+        {
+            let mut file = File::create(filename).unwrap();
 
-        // Write the starting address (0x3000) as two bytes
-        file.write_all(&0x3000u16.to_be_bytes()).unwrap();
+            // Write the starting address (0x3000) as two bytes
+            file.write_all(&0x3000u16.to_be_bytes()).unwrap();
 
-        // Write the memory content (0x1234) as two bytes
-        file.write_all(&0x1234u16.to_be_bytes()).unwrap();
-    } // File is closed here
+            // Write the memory content (0x1234) as two bytes
+            file.write_all(&0x1234u16.to_be_bytes()).unwrap();
+        } // File is closed here
 
-    // Reopen the file for reading
-    let file = File::open(filename).unwrap();
+        // Reopen the file for reading
+        let file = File::open(filename).unwrap();
 
-    // Pass the file to the VM
-    vm.read_image_file(file).unwrap();
+        // Pass the file to the VM
+        vm.read_image_file(file).unwrap();
 
-    // Check if the memory is loaded correctly
-    assert_eq!(vm.memory[0x3000], 0x1234); 
-}
-
+        // Check if the memory is loaded correctly
+        assert_eq!(vm.memory[0x3000], 0x1234);
+    }
 }
